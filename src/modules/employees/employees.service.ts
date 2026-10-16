@@ -2,6 +2,7 @@ import { prisma } from '../../database/prisma';
 import { NotFoundError, ConflictError } from '../../common/errors/app.error';
 import { PaginationParams } from '../../common/utils/pagination.utils';
 import { CreateEmployeeInput, UpdateEmployeeInput } from './employees.schema';
+import { provisionEmployeeAccount } from '../users/employee-account.service';
 
 export interface EmployeeFilters {
   departmentId?: string;
@@ -161,37 +162,40 @@ export class EmployeesService {
       }
     }
 
-    const employee = await prisma.employee.create({
-      data: {
-        employeeCode: input.employeeCode,
-        firstName: input.firstName,
-        middleName: input.middleName || null,
-        lastName: input.lastName,
-        workEmail: input.workEmail,
-        personalEmail: input.personalEmail || null,
-        phone: input.phone || null,
-        dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
-        gender: input.gender || null,
-        hireDate: new Date(input.hireDate),
-        employmentStatus: input.employmentStatus,
-        employmentType: input.employmentType,
-        departmentId: input.departmentId || null,
-        designationId: input.designationId || null,
-        reportingManagerId: input.reportingManagerId || null,
-        workLocation: input.workLocation,
-        employmentEndDate: input.employmentEndDate ? new Date(input.employmentEndDate) : null,
-        avatarUrl: input.avatarUrl || null,
-      },
-      include: {
-        department: { select: { id: true, name: true, code: true } },
-        designation: { select: { id: true, name: true, code: true } },
-        reportingManager: {
-          select: { id: true, firstName: true, lastName: true },
+    return prisma.$transaction(async (tx) => {
+      const employee = await tx.employee.create({
+        data: {
+          employeeCode: input.employeeCode,
+          firstName: input.firstName,
+          middleName: input.middleName || null,
+          lastName: input.lastName,
+          workEmail: input.workEmail,
+          personalEmail: input.personalEmail || null,
+          phone: input.phone || null,
+          dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
+          gender: input.gender || null,
+          hireDate: new Date(input.hireDate),
+          employmentStatus: input.employmentStatus,
+          employmentType: input.employmentType,
+          departmentId: input.departmentId || null,
+          designationId: input.designationId || null,
+          reportingManagerId: input.reportingManagerId || null,
+          workLocation: input.workLocation,
+          employmentEndDate: input.employmentEndDate ? new Date(input.employmentEndDate) : null,
+          avatarUrl: input.avatarUrl || null,
         },
-      },
-    });
+        include: {
+          department: { select: { id: true, name: true, code: true } },
+          designation: { select: { id: true, name: true, code: true } },
+          reportingManager: {
+            select: { id: true, firstName: true, lastName: true },
+          },
+        },
+      });
 
-    return employee;
+      const credentials = await provisionEmployeeAccount(tx, employee.id, employee.workEmail, input.password);
+      return { employee, credentials };
+    });
   }
 
   async updateEmployee(id: string, input: UpdateEmployeeInput) {
@@ -294,25 +298,28 @@ export class EmployeesService {
       throw new NotFoundError(`Employee with ID ${id} not found.`);
     }
 
-    // Reassign direct reports to no manager
-    if (existing.directReports.length > 0) {
-      await prisma.employee.updateMany({
-        where: { reportingManagerId: id },
-        data: { reportingManagerId: null },
+    await prisma.$transaction(async (tx) => {
+      if (existing.directReports.length > 0) {
+        await tx.employee.updateMany({
+          where: { reportingManagerId: id },
+          data: { reportingManagerId: null },
+        });
+      }
+
+      await tx.employee.update({
+        where: { id },
+        data: { employmentStatus: 'TERMINATED', employmentEndDate: new Date() },
       });
-    }
 
-    // Unlink user account if exists
-    if (existing.user) {
-      await prisma.user.update({
-        where: { id: existing.user.id },
-        data: { employeeId: null },
-      });
-    }
+      if (existing.user) {
+        await tx.user.update({
+          where: { id: existing.user.id },
+          data: { isActive: false },
+        });
+      }
+    });
 
-    await prisma.employee.delete({ where: { id } });
-
-    return { id, deleted: true };
+    return { id, archived: true };
   }
 }
 

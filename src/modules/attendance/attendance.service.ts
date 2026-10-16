@@ -302,8 +302,11 @@ export class AttendanceService {
     return { items, total, page: filters.page, limit: filters.limit };
   }
 
-  async getAttendanceSummary(departmentId?: string, startDate?: string, endDate?: string) {
+  async getAttendanceSummary(departmentId?: string, startDate?: string, endDate?: string, employeeId?: string) {
     const where: Record<string, unknown> = {};
+    if (employeeId) {
+      where.employeeId = employeeId;
+    }
     if (departmentId) {
       where.employee = { departmentId };
     }

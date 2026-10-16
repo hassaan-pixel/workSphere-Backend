@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const createEmployeeSchema = z.object({
+  password: z.string().min(8, 'Password must be at least 8 characters').max(128).optional(),
   employeeCode: z
     .string({ required_error: 'Employee code is required' })
     .min(1, 'Employee code is required')

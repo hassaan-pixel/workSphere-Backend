@@ -188,6 +188,7 @@ router.post(
 router.get(
   '/calendar',
   authenticate,
+  requirePermission('leave:read_team'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const startDate = typeof req.query.startDate === 'string' ? req.query.startDate : new Date().toISOString().substring(0, 7) + '-01';

@@ -9,9 +9,29 @@ import {
   manualAttendanceSchema,
   attendanceFilterSchema,
 } from './attendance.schema';
-import { BadRequestError } from '../../common/errors/app.error';
+import { BadRequestError, ForbiddenError } from '../../common/errors/app.error';
 
 const router = Router();
+const attendanceAdminRoles = ['Super Admin', 'HR Admin', 'HR Officer'];
+
+function isAttendanceAdmin(req: Request): boolean {
+  return attendanceAdminRoles.includes(req.user?.roleName || '');
+}
+
+function getOwnEmployeeId(req: Request): string {
+  if (!req.user?.employeeId) {
+    throw new BadRequestError('User account is not linked to an employee profile.');
+  }
+  return req.user.employeeId;
+}
+
+function getClockEmployeeId(req: Request): string {
+  if (!isAttendanceAdmin(req)) return getOwnEmployeeId(req);
+
+  const employeeId = req.body.employeeId || req.user?.employeeId;
+  if (!employeeId) throw new BadRequestError('An employee profile is required.');
+  return employeeId;
+}
 
 router.post(
   '/clock-in',
@@ -19,10 +39,7 @@ router.post(
   validateRequest({ body: clockInSchema }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const employeeId = req.body.employeeId || req.user!.employeeId;
-      if (!employeeId) {
-        throw new BadRequestError('User account is not linked to an employee profile.');
-      }
+      const employeeId = getClockEmployeeId(req);
 
       const result = await attendanceService.clockIn(
         employeeId,
@@ -43,10 +60,7 @@ router.post(
   validateRequest({ body: clockOutSchema }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const employeeId = req.body.employeeId || req.user!.employeeId;
-      if (!employeeId) {
-        throw new BadRequestError('User account is not linked to an employee profile.');
-      }
+      const employeeId = getClockEmployeeId(req);
 
       const result = await attendanceService.clockOut(
         employeeId,
@@ -68,6 +82,9 @@ router.post(
   validateRequest({ body: manualAttendanceSchema }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      if (!isAttendanceAdmin(req)) {
+        throw new ForbiddenError('Only HR or Super Admin users can create or correct attendance records.');
+      }
       const record = await attendanceService.recordManualAttendance(
         req.body,
         req.user!.id,
@@ -87,6 +104,7 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const filters = attendanceFilterSchema.parse(req.query);
+      if (!isAttendanceAdmin(req)) filters.employeeId = getOwnEmployeeId(req);
       const { items, total, page, limit } = await attendanceService.listAttendance(filters);
       sendPaginated(res, items, total, page, limit, 'Attendance records retrieved');
     } catch (error) {
@@ -104,8 +122,9 @@ router.get(
       const departmentId = typeof req.query.departmentId === 'string' ? req.query.departmentId : undefined;
       const startDate = typeof req.query.startDate === 'string' ? req.query.startDate : undefined;
       const endDate = typeof req.query.endDate === 'string' ? req.query.endDate : undefined;
+      const employeeId = isAttendanceAdmin(req) ? undefined : getOwnEmployeeId(req);
 
-      const summary = await attendanceService.getAttendanceSummary(departmentId, startDate, endDate);
+      const summary = await attendanceService.getAttendanceSummary(departmentId, startDate, endDate, employeeId);
       sendSuccess(res, summary, 'Attendance summary retrieved');
     } catch (error) {
       next(error);
@@ -122,7 +141,8 @@ router.get(
       const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
       const month = req.query.month ? Number(req.query.month) : new Date().getMonth() + 1;
 
-      const records = await attendanceService.getMonthlyView(req.params.employeeId, year, month);
+      const employeeId = isAttendanceAdmin(req) ? req.params.employeeId : getOwnEmployeeId(req);
+      const records = await attendanceService.getMonthlyView(employeeId, year, month);
       sendSuccess(res, records, 'Monthly attendance records retrieved');
     } catch (error) {
       next(error);
@@ -137,6 +157,7 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const filters = attendanceFilterSchema.parse(req.query);
+      if (!isAttendanceAdmin(req)) filters.employeeId = getOwnEmployeeId(req);
       const csv = await attendanceService.exportCsv(filters);
 
       res.setHeader('Content-Type', 'text/csv');

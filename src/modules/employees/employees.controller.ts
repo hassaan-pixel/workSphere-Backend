@@ -34,8 +34,8 @@ export class EmployeesController {
 
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const employee = await employeesService.createEmployee(req.body);
-      sendSuccess(res, employee, 'Employee created successfully', 201);
+      const result = await employeesService.createEmployee(req.body);
+      sendSuccess(res, result, 'Employee created with login credentials', 201);
     } catch (error) {
       next(error);
     }
@@ -53,7 +53,7 @@ export class EmployeesController {
   async remove(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const result = await employeesService.deleteEmployee(req.params.id);
-      sendSuccess(res, result, 'Employee deleted successfully');
+      sendSuccess(res, result, 'Employee archived successfully');
     } catch (error) {
       next(error);
     }

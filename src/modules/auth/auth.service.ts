@@ -1,8 +1,8 @@
 import { prisma } from '../../database/prisma';
-import { comparePassword } from '../../common/utils/hash.utils';
+import { comparePassword, hashPassword } from '../../common/utils/hash.utils';
 import { generateToken } from '../../common/utils/jwt.utils';
-import { UnauthorizedError } from '../../common/errors/app.error';
-import { LoginInput } from './auth.schema';
+import { BadRequestError, UnauthorizedError } from '../../common/errors/app.error';
+import { ChangePasswordInput, LoginInput } from './auth.schema';
 
 export interface UserSessionData {
   user: {
@@ -35,6 +35,39 @@ export interface UserSessionData {
 }
 
 export class AuthService {
+  async changePassword(
+    userId: string,
+    input: ChangePasswordInput,
+    metadata?: { ip?: string; userAgent?: string }
+  ): Promise<void> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedError('User account not found or deactivated.');
+    }
+
+    const currentPasswordMatches = await comparePassword(input.currentPassword, user.passwordHash);
+    if (!currentPasswordMatches) {
+      throw new UnauthorizedError('Current password is incorrect.');
+    }
+
+    if (input.currentPassword === input.newPassword) {
+      throw new BadRequestError('New password must be different from the current password.');
+    }
+
+    const passwordHash = await hashPassword(input.newPassword);
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
+      prisma.authAudit.create({
+        data: {
+          userId,
+          action: 'PASSWORD_CHANGED',
+          ipAddress: metadata?.ip,
+          userAgent: metadata?.userAgent,
+        },
+      }),
+    ]);
+  }
+
   async login(
     input: LoginInput,
     metadata?: { ip?: string; userAgent?: string }

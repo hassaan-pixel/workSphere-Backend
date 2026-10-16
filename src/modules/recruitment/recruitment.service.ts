@@ -9,6 +9,7 @@ import {
 } from './recruitment.schema';
 import { auditService } from '../audit/audit.service';
 import { onboardingService } from '../onboarding/onboarding.service';
+import { provisionEmployeeAccount } from '../users/employee-account.service';
 
 export class RecruitmentService {
   // --- Job Openings ---
@@ -245,22 +246,41 @@ export class RecruitmentService {
       throw new ConflictError('This candidate has already been hired and converted to an employee.');
     }
 
-    // Split name into first and last
-    const nameParts = candidate.fullName.trim().split(' ');
-    const firstName = nameParts[0];
-    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'Hired';
+    if (candidate.stage !== 'OFFER') {
+      throw new BadRequestError('A candidate must reach the OFFER stage before being hired.');
+    }
+
+    const nameParts = candidate.fullName.trim().split(/\s+/).filter(Boolean);
+    const firstName = input.firstName || nameParts[0] || 'New';
+    const lastName = input.lastName || (nameParts.length > 1 ? nameParts[nameParts.length - 1] : 'Hired');
+    const middleName = input.middleName ?? (nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : null);
+    const workEmail = (input.workEmail || candidate.email).trim().toLowerCase();
 
     // Check unique employee code & email
     const [codeExists, emailExists] = await Promise.all([
       prisma.employee.findUnique({ where: { employeeCode: input.employeeCode } }),
-      prisma.employee.findUnique({ where: { workEmail: candidate.email } }),
+      prisma.employee.findUnique({ where: { workEmail } }),
     ]);
 
     if (codeExists) throw new ConflictError(`Employee code "${input.employeeCode}" already in use.`);
-    if (emailExists) throw new ConflictError(`Work email "${candidate.email}" already exists for an employee.`);
+    if (emailExists) throw new ConflictError(`Work email "${workEmail}" already exists for an employee.`);
 
     const deptId = input.departmentId || candidate.jobOpening.departmentId || null;
     const desigId = input.designationId || candidate.jobOpening.designationId || null;
+
+    if (deptId && !(await prisma.department.findUnique({ where: { id: deptId } }))) {
+      throw new NotFoundError('Selected department was not found.');
+    }
+    if (desigId) {
+      const designation = await prisma.designation.findUnique({ where: { id: desigId } });
+      if (!designation) throw new NotFoundError('Selected designation was not found.');
+      if (designation.departmentId && deptId && designation.departmentId !== deptId) {
+        throw new BadRequestError('The selected designation does not belong to the selected department.');
+      }
+    }
+    if (input.reportingManagerId && !(await prisma.employee.findUnique({ where: { id: input.reportingManagerId } }))) {
+      throw new NotFoundError('Selected reporting manager was not found.');
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. Create employee
@@ -268,17 +288,24 @@ export class RecruitmentService {
         data: {
           employeeCode: input.employeeCode,
           firstName,
+          middleName: middleName || null,
           lastName,
-          workEmail: candidate.email,
-          phone: candidate.phone || null,
+          workEmail,
+          personalEmail: input.personalEmail || null,
+          phone: input.phone || candidate.phone || null,
+          dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
+          gender: input.gender || null,
           hireDate: new Date(input.hireDate),
           employmentStatus: input.employmentStatus,
           employmentType: input.employmentType,
           workLocation: input.workLocation,
           departmentId: deptId,
           designationId: desigId,
+          reportingManagerId: input.reportingManagerId || null,
         },
       });
+
+      const credentials = await provisionEmployeeAccount(tx, employee.id, employee.workEmail);
 
       // 2. Update candidate record
       const updatedCandidate = await tx.candidate.update({
@@ -300,7 +327,7 @@ export class RecruitmentService {
         },
       });
 
-      return { candidate: updatedCandidate, employee };
+      return { candidate: updatedCandidate, employee, credentials };
     });
 
     // 4. Audit log after transaction commits

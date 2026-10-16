@@ -34,10 +34,19 @@ export const transitionStageSchema = z.object({
 
 export const hireCandidateSchema = z.object({
   employeeCode: z.string().min(1, 'Employee code is required').max(20).trim(),
-  hireDate: z.string({ required_error: 'Hire date is required' }),
+  firstName: z.string().min(1).max(100).trim().optional(),
+  middleName: z.string().max(100).trim().optional().nullable(),
+  lastName: z.string().min(1).max(100).trim().optional(),
+  workEmail: z.string().email('Valid work email is required').toLowerCase().trim().optional(),
+  personalEmail: z.string().email('Valid personal email is required').toLowerCase().trim().optional().nullable(),
+  phone: z.string().max(30).trim().optional().nullable(),
+  dateOfBirth: z.string().refine((value) => !Number.isNaN(Date.parse(value)), 'Date of birth must be a valid date').optional().nullable(),
+  gender: z.enum(['MALE', 'FEMALE', 'NON_BINARY', 'PREFER_NOT_TO_SAY']).optional().nullable(),
+  hireDate: z.string({ required_error: 'Hire date is required' }).refine((value) => !Number.isNaN(Date.parse(value)), 'Hire date must be a valid date'),
   departmentId: z.string().uuid().optional().nullable(),
   designationId: z.string().uuid().optional().nullable(),
-  workLocation: z.string().default('Headquarters'),
+  reportingManagerId: z.string().uuid().optional().nullable(),
+  workLocation: z.string().min(1).max(200).trim().default('Headquarters'),
   employmentStatus: z.enum(['ACTIVE', 'PROBATION']).default('PROBATION'),
   employmentType: z.enum(['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERN']).default('FULL_TIME'),
 });
