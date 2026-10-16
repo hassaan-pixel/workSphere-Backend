@@ -1,0 +1,43 @@
+import { z } from 'zod';
+
+export const createEmployeeSchema = z.object({
+  employeeCode: z
+    .string({ required_error: 'Employee code is required' })
+    .min(1, 'Employee code is required')
+    .max(20, 'Employee code must be at most 20 characters')
+    .trim(),
+  firstName: z
+    .string({ required_error: 'First name is required' })
+    .min(1, 'First name is required')
+    .max(100, 'First name must be at most 100 characters')
+    .trim(),
+  middleName: z.string().max(100).trim().optional().nullable(),
+  lastName: z
+    .string({ required_error: 'Last name is required' })
+    .min(1, 'Last name is required')
+    .max(100, 'Last name must be at most 100 characters')
+    .trim(),
+  workEmail: z
+    .string({ required_error: 'Work email is required' })
+    .email('Please enter a valid email address')
+    .trim()
+    .toLowerCase(),
+  personalEmail: z.string().email('Invalid personal email').trim().toLowerCase().optional().nullable(),
+  phone: z.string().max(30).trim().optional().nullable(),
+  dateOfBirth: z.string().optional().nullable(),
+  gender: z.enum(['MALE', 'FEMALE', 'NON_BINARY', 'PREFER_NOT_TO_SAY']).optional().nullable(),
+  hireDate: z.string({ required_error: 'Hire date is required' }),
+  employmentStatus: z.enum(['ACTIVE', 'ON_LEAVE', 'PROBATION', 'TERMINATED', 'RESIGNED']).default('ACTIVE'),
+  employmentType: z.enum(['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERN']).default('FULL_TIME'),
+  departmentId: z.string().uuid('Invalid department ID').optional().nullable(),
+  designationId: z.string().uuid('Invalid designation ID').optional().nullable(),
+  reportingManagerId: z.string().uuid('Invalid manager ID').optional().nullable(),
+  workLocation: z.string().max(200).trim().default('Headquarters'),
+  employmentEndDate: z.string().optional().nullable(),
+  avatarUrl: z.string().url('Invalid avatar URL').optional().nullable(),
+});
+
+export const updateEmployeeSchema = createEmployeeSchema.partial();
+
+export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>;
+export type UpdateEmployeeInput = z.infer<typeof updateEmployeeSchema>;

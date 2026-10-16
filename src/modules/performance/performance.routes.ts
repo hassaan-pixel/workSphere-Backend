@@ -1,0 +1,17 @@
+import { Router } from 'express';
+import { authenticate, requirePermission } from '../../common/middleware/auth.middleware';
+import { validateRequest } from '../../common/middleware/validate.middleware';
+import { sendSuccess } from '../../common/utils/response.utils';
+import { cycleSchema, goalSchema, goalUpdateSchema, managerAssessmentSchema, reviewSchema, selfAssessmentSchema } from './performance.schema';
+import { performanceService } from './performance.service';
+const router = Router(); router.use(authenticate);
+router.get('/cycles', requirePermission('performance:read'), async (_req, res, next) => { try { sendSuccess(res, await performanceService.listCycles()); } catch (error) { next(error); } });
+router.post('/cycles', requirePermission('performance:write'), validateRequest({ body: cycleSchema }), async (req, res, next) => { try { sendSuccess(res, await performanceService.createCycle(req.body), 'Review cycle created.', 201); } catch (error) { next(error); } });
+router.get('/goals', requirePermission('performance:read'), async (req, res, next) => { try { sendSuccess(res, await performanceService.listGoals(req.user!, typeof req.query.employeeId === 'string' ? req.query.employeeId : undefined)); } catch (error) { next(error); } });
+router.post('/goals', requirePermission('performance:write'), validateRequest({ body: goalSchema }), async (req, res, next) => { try { sendSuccess(res, await performanceService.createGoal(req.body), 'Goal created.', 201); } catch (error) { next(error); } });
+router.patch('/goals/:id', requirePermission('performance:read'), validateRequest({ body: goalUpdateSchema }), async (req, res, next) => { try { sendSuccess(res, await performanceService.updateGoal(req.params.id, req.body, req.user!)); } catch (error) { next(error); } });
+router.get('/reviews', requirePermission('performance:read'), async (req, res, next) => { try { sendSuccess(res, await performanceService.listReviews(req.user!)); } catch (error) { next(error); } });
+router.post('/reviews', requirePermission('performance:write'), validateRequest({ body: reviewSchema }), async (req, res, next) => { try { sendSuccess(res, await performanceService.createReview(req.body, req.user!), 'Performance review created.', 201); } catch (error) { next(error); } });
+router.post('/reviews/:id/self-assessment', validateRequest({ body: selfAssessmentSchema }), async (req, res, next) => { try { sendSuccess(res, await performanceService.submitSelfAssessment(req.params.id, req.body, req.user!), 'Self assessment submitted.'); } catch (error) { next(error); } });
+router.post('/reviews/:id/manager-assessment', requirePermission('performance:write'), validateRequest({ body: managerAssessmentSchema }), async (req, res, next) => { try { sendSuccess(res, await performanceService.submitManagerAssessment(req.params.id, req.body, req.user!), 'Manager assessment saved.'); } catch (error) { next(error); } });
+export default router;
