@@ -34,7 +34,7 @@ export class EmployeesController {
 
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const result = await employeesService.createEmployee(req.body);
+      const result = await employeesService.createEmployee(req.body, req.user!.permissions);
       sendSuccess(res, result, 'Employee created with login credentials', 201);
     } catch (error) {
       next(error);
@@ -43,7 +43,7 @@ export class EmployeesController {
 
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const employee = await employeesService.updateEmployee(req.params.id, req.body);
+      const employee = await employeesService.updateEmployee(req.params.id, req.body, req.user!.permissions);
       sendSuccess(res, employee, 'Employee updated successfully');
     } catch (error) {
       next(error);

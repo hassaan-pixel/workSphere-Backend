@@ -84,6 +84,7 @@ export class AuthService {
             },
           },
         },
+        userPermissions: { include: { permission: true } },
         employee: {
           include: {
             department: { select: { id: true, name: true } },
@@ -139,7 +140,10 @@ export class AuthService {
       },
     });
 
-    const permissions = user.role.rolePermissions.map((rp) => rp.permission.code);
+    const permissions = [...new Set([
+      ...user.role.rolePermissions.map((rp) => rp.permission.code),
+      ...user.userPermissions.map((up) => up.permission.code),
+    ])];
 
     const token = generateToken({
       userId: user.id,
@@ -190,6 +194,7 @@ export class AuthService {
             },
           },
         },
+        userPermissions: { include: { permission: true } },
         employee: {
           include: {
             department: { select: { id: true, name: true, code: true } },
@@ -211,7 +216,10 @@ export class AuthService {
       throw new UnauthorizedError('User account not found.');
     }
 
-    const permissions = user.role.rolePermissions.map((rp) => rp.permission.code);
+    const permissions = [...new Set([
+      ...user.role.rolePermissions.map((rp) => rp.permission.code),
+      ...user.userPermissions.map((up) => up.permission.code),
+    ])];
 
     return {
       id: user.id,

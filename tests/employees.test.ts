@@ -5,6 +5,8 @@ import { prisma } from '../src/database/prisma';
 describe('Employees API Tests', () => {
   let adminToken: string;
   let testEmpId: string;
+  let assignedEmployeeId: string;
+  let assignedTemporaryPassword: string;
   let deptId: string;
   let desigId: string;
 
@@ -25,8 +27,11 @@ describe('Employees API Tests', () => {
   });
 
   afterAll(async () => {
+    await prisma.user.deleteMany({
+      where: { email: { in: ['test.candidate@worksphere.io', 'duplicate.email@worksphere.io', 'role.assignment@worksphere.io'] } },
+    });
     await prisma.employee.deleteMany({
-      where: { employeeCode: { in: ['EMP-TEST-99', 'EMP-TEST-100'] } },
+      where: { employeeCode: { in: ['EMP-TEST-99', 'EMP-TEST-100', 'EMP-TEST-101'] } },
     });
     await prisma.$disconnect();
   });
@@ -77,6 +82,68 @@ describe('Employees API Tests', () => {
     expect(res.body.data.firstName).toBe('Test');
     expect(res.body.data.lastName).toBe('Candidate');
     testEmpId = res.body.data.id;
+  });
+
+  it('POST /api/employees should apply the selected role and additional permissions to the account', async () => {
+    const role = await prisma.role.findUnique({ where: { name: 'HR Officer' } });
+    expect(role).toBeTruthy();
+
+    const res = await request(app)
+      .post('/api/employees')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        employeeCode: 'EMP-TEST-101',
+        firstName: 'Role',
+        lastName: 'Assignment',
+        workEmail: 'role.assignment@worksphere.io',
+        hireDate: '2026-03-01',
+        employmentStatus: 'ACTIVE',
+        employmentType: 'FULL_TIME',
+        workLocation: 'Remote',
+        roleId: role!.id,
+        permissionCodes: ['reports:read', 'reports:export'],
+      });
+
+    expect(res.status).toBe(201);
+    const user = await prisma.user.findUnique({
+      where: { email: 'role.assignment@worksphere.io' },
+      include: { role: true, userPermissions: { include: { permission: true } } },
+    });
+    expect(user?.role.name).toBe('HR Officer');
+    expect(user?.userPermissions.map((item) => item.permission.code)).toContain('reports:export');
+    assignedEmployeeId = res.body.data.employee.id;
+    assignedTemporaryPassword = res.body.data.credentials.temporaryPassword;
+
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'role.assignment@worksphere.io', password: res.body.data.credentials.temporaryPassword });
+    expect(login.status).toBe(200);
+    expect(login.body.data.user.role.name).toBe('HR Officer');
+    expect(login.body.data.user.permissions).toContain('reports:export');
+  });
+
+  it('PUT /api/employees/:id should update the account role and additional permissions', async () => {
+    const role = await prisma.role.findUnique({ where: { name: 'HR Officer' } });
+    const res = await request(app)
+      .put(`/api/employees/${assignedEmployeeId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        roleId: role!.id,
+        permissionCodes: ['reports:read', 'reports:export', 'payroll:read'],
+      });
+
+    expect(res.status).toBe(200);
+    const user = await prisma.user.findUnique({
+      where: { email: 'role.assignment@worksphere.io' },
+      include: { userPermissions: { include: { permission: true } } },
+    });
+    expect(user?.userPermissions.map((item) => item.permission.code).sort()).toEqual(['payroll:read', 'reports:export']);
+
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'role.assignment@worksphere.io', password: assignedTemporaryPassword });
+    expect(login.status).toBe(200);
+    expect(login.body.data.user.permissions).toContain('payroll:read');
   });
 
   it('POST /api/employees should reject duplicate workEmail with 409 conflict', async () => {

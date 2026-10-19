@@ -1,5 +1,5 @@
 import { prisma } from '../../database/prisma';
-import { NotFoundError, ConflictError } from '../../common/errors/app.error';
+import { BadRequestError, ForbiddenError, NotFoundError, ConflictError } from '../../common/errors/app.error';
 import { PaginationParams } from '../../common/utils/pagination.utils';
 import { CreateEmployeeInput, UpdateEmployeeInput } from './employees.schema';
 import { provisionEmployeeAccount } from '../users/employee-account.service';
@@ -108,7 +108,12 @@ export class EmployeesService {
             email: true,
             isActive: true,
             lastLoginAt: true,
-            role: { select: { id: true, name: true } },
+            role: {
+              include: {
+                rolePermissions: { include: { permission: true } },
+              },
+            },
+            userPermissions: { include: { permission: true } },
           },
         },
       },
@@ -121,7 +126,40 @@ export class EmployeesService {
     return employee;
   }
 
-  async createEmployee(input: CreateEmployeeInput) {
+  async createEmployee(input: CreateEmployeeInput, actorPermissions: string[] = []) {
+    const role = input.roleId
+      ? await prisma.role.findUnique({
+          where: { id: input.roleId },
+          include: { rolePermissions: { include: { permission: true } } },
+        })
+      : await prisma.role.findUnique({
+          where: { name: 'Employee' },
+          include: { rolePermissions: { include: { permission: true } } },
+        });
+    if (!role) {
+      throw new NotFoundError(input.roleId ? `Role with ID ${input.roleId} not found.` : 'The Employee role is not configured.');
+    }
+
+    const rolePermissionCodes = role.rolePermissions.map((rp) => rp.permission.code);
+    const requestedPermissionCodes = [...new Set(input.permissionCodes || [])];
+    if (requestedPermissionCodes.length) {
+      const existingPermissions = await prisma.permission.findMany({
+        where: { code: { in: requestedPermissionCodes } },
+        select: { code: true },
+      });
+      if (existingPermissions.length !== requestedPermissionCodes.length) {
+        throw new BadRequestError('One or more selected permissions do not exist.');
+      }
+    }
+
+    const effectivePermissionCodes = [...new Set([...rolePermissionCodes, ...requestedPermissionCodes])];
+    if (effectivePermissionCodes.some((code) => !actorPermissions.includes(code))) {
+      throw new ForbiddenError('You cannot grant permissions that you do not have.');
+    }
+    const additionalPermissionCodes = requestedPermissionCodes.filter(
+      (code) => !rolePermissionCodes.includes(code)
+    );
+
     // Check for unique employee code
     const existingCode = await prisma.employee.findUnique({
       where: { employeeCode: input.employeeCode },
@@ -193,14 +231,31 @@ export class EmployeesService {
         },
       });
 
-      const credentials = await provisionEmployeeAccount(tx, employee.id, employee.workEmail, input.password);
+      const credentials = await provisionEmployeeAccount(
+        tx,
+        employee.id,
+        employee.workEmail,
+        input.password,
+        role.id,
+        additionalPermissionCodes
+      );
       return { employee, credentials };
     });
   }
 
-  async updateEmployee(id: string, input: UpdateEmployeeInput) {
+  async updateEmployee(id: string, input: UpdateEmployeeInput, actorPermissions: string[] = []) {
     // Check employee exists
-    const existing = await prisma.employee.findUnique({ where: { id } });
+    const existing = await prisma.employee.findUnique({
+      where: { id },
+      include: {
+        user: {
+          include: {
+            role: { include: { rolePermissions: { include: { permission: true } } } },
+            userPermissions: { include: { permission: true } },
+          },
+        },
+      },
+    });
     if (!existing) {
       throw new NotFoundError(`Employee with ID ${id} not found.`);
     }
@@ -271,19 +326,76 @@ export class EmployeesService {
     if (input.employmentEndDate !== undefined) updateData.employmentEndDate = input.employmentEndDate ? new Date(input.employmentEndDate) : null;
     if (input.avatarUrl !== undefined) updateData.avatarUrl = input.avatarUrl || null;
 
-    const employee = await prisma.employee.update({
-      where: { id },
-      data: updateData,
-      include: {
-        department: { select: { id: true, name: true, code: true } },
-        designation: { select: { id: true, name: true, code: true } },
-        reportingManager: {
-          select: { id: true, firstName: true, lastName: true },
-        },
-      },
-    });
+    let accountRoleId: string | undefined;
+    let additionalPermissionIds: string[] | undefined;
+    if (input.roleId !== undefined || input.permissionCodes !== undefined) {
+      if (!existing.user) {
+        throw new BadRequestError('This employee does not have a login account to update.');
+      }
 
-    return employee;
+      const role = await prisma.role.findUnique({
+        where: { id: input.roleId || existing.user.roleId },
+        include: { rolePermissions: { include: { permission: true } } },
+      });
+      if (!role) throw new NotFoundError('The selected role no longer exists.');
+
+      const rolePermissionCodes = role.rolePermissions.map((rp) => rp.permission.code);
+      const requestedPermissionCodes = [...new Set(input.permissionCodes || [])];
+      const foundPermissions = requestedPermissionCodes.length
+        ? await prisma.permission.findMany({
+            where: { code: { in: requestedPermissionCodes } },
+            select: { code: true },
+          })
+        : [];
+      if (foundPermissions.length !== requestedPermissionCodes.length) {
+        throw new BadRequestError('One or more selected permissions do not exist.');
+      }
+
+      const effectivePermissions = [...new Set([...rolePermissionCodes, ...requestedPermissionCodes])];
+      const currentPermissions = new Set([
+        ...(existing.user.role.rolePermissions.map((rp) => rp.permission.code)),
+        ...(existing.user.userPermissions.map((up) => up.permission.code)),
+      ]);
+      if (effectivePermissions.some((code) => !actorPermissions.includes(code) && !currentPermissions.has(code))) {
+        throw new ForbiddenError('You cannot grant permissions that you do not have.');
+      }
+
+      accountRoleId = role.id;
+      const extraCodes = requestedPermissionCodes.filter((code) => !rolePermissionCodes.includes(code));
+      const extraPermissions = extraCodes.length
+        ? await prisma.permission.findMany({ where: { code: { in: extraCodes } }, select: { id: true } })
+        : [];
+      additionalPermissionIds = extraPermissions.map((permission) => permission.id);
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const employee = await tx.employee.update({
+        where: { id },
+        data: updateData,
+        include: {
+          department: { select: { id: true, name: true, code: true } },
+          designation: { select: { id: true, name: true, code: true } },
+          reportingManager: {
+            select: { id: true, firstName: true, lastName: true },
+          },
+        },
+      });
+
+      if (existing.user && accountRoleId && additionalPermissionIds !== undefined) {
+        await tx.user.update({
+          where: { id: existing.user.id },
+          data: {
+            roleId: accountRoleId,
+            userPermissions: {
+              deleteMany: {},
+              create: additionalPermissionIds.map((permissionId) => ({ permissionId })),
+            },
+          },
+        });
+      }
+
+      return employee;
+    });
   }
 
   async deleteEmployee(id: string) {
