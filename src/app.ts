@@ -21,7 +21,7 @@ export function createApp(): Express {
   // CORS Configuration
   app.use(
     cors({
-      origin: [config.corsOrigin, 'http://localhost:4200', 'http://127.0.0.1:4200'],
+      origin: true,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
