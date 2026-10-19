@@ -28,6 +28,7 @@ model Permission {
   description     String?
   createdAt       DateTime         @default(now())
   rolePermissions RolePermission[]
+  userPermissions UserPermission[]
 
   @@map("permissions")
 }
@@ -49,6 +50,7 @@ model User {
   passwordHash            String
   roleId                  String
   role                    Role                    @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  userPermissions         UserPermission[]
   employeeId              String?                 @unique
   employee                Employee?               @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   isActive                Boolean                 @default(true)
@@ -69,6 +71,17 @@ model User {
   @@index([email])
   @@index([roleId])
   @@map("users")
+}
+
+model UserPermission {
+  userId       String
+  permissionId String
+  assignedAt   DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+  @@map("user_permissions")
 }
 
 model Department {

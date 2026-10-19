@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 export const createEmployeeSchema = z.object({
+  roleId: z.string().uuid('Invalid role ID').optional(),
+  permissionCodes: z.array(z.string().min(1)).max(200).optional(),
   password: z.string().min(8, 'Password must be at least 8 characters').max(128).optional(),
   employeeCode: z
     .string({ required_error: 'Employee code is required' })

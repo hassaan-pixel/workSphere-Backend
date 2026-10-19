@@ -63,6 +63,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
             },
           },
         },
+        userPermissions: { include: { permission: true } },
       },
     });
 
@@ -70,7 +71,10 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       throw new UnauthorizedError('User account not found or deactivated.');
     }
 
-    const permissions = user.role.rolePermissions.map((rp) => rp.permission.code);
+    const permissions = [...new Set([
+      ...user.role.rolePermissions.map((rp) => rp.permission.code),
+      ...user.userPermissions.map((up) => up.permission.code),
+    ])];
 
     req.user = {
       id: user.id,

@@ -73,4 +73,19 @@ router.get(
   }
 );
 
+router.get(
+  '/permissions',
+  authenticate,
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const permissions = await prisma.permission.findMany({
+        orderBy: [{ module: 'asc' }, { code: 'asc' }],
+      });
+      sendSuccess(res, permissions, 'Permissions retrieved');
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export default router;
