@@ -11,7 +11,7 @@ async function bootstrap() {
     console.log(`[Database] Connected to SQLite database at ${config.databaseUrl}`);
 
     // Start Express server
-    server = app.listen(config.port, () => {
+    server = app.listen(config.port, '0.0.0.0', () => {
       console.log(`[WorkSphere API] Server listening on port ${config.port}`);
       console.log(`[WorkSphere API] Base URL: http://localhost:${config.port}${config.apiPrefix}`);
       console.log(`[WorkSphere API] Health Check: http://localhost:${config.port}${config.apiPrefix}/health`);
