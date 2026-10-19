@@ -16,6 +16,7 @@ import payrollRoutes from '../modules/payroll/payroll.routes';
 import performanceRoutes from '../modules/performance/performance.routes';
 import reportsRoutes from '../modules/reports/reports.routes';
 import settingsRoutes from '../modules/settings/settings.routes';
+import assistantRoutes from '../modules/assistant/assistant.routes';
 import { prisma } from '../database/prisma';
 
 const router = Router();
@@ -59,5 +60,6 @@ router.use('/payroll', payrollRoutes);
 router.use('/performance', performanceRoutes);
 router.use('/reports', reportsRoutes);
 router.use('/settings', settingsRoutes);
+router.use('/assistant', assistantRoutes);
 
 export default router;
