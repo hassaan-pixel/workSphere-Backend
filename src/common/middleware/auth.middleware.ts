@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { verifyToken, JwtPayload } from '../utils/jwt.utils';
 import { UnauthorizedError, ForbiddenError } from '../errors/app.error';
 import { prisma } from '../../database/prisma';
+import { isValidTimeZone } from '../utils/timezone.utils';
 
 export interface AuthenticatedUser {
   id: string;
@@ -10,6 +11,7 @@ export interface AuthenticatedUser {
   roleName: string;
   employeeId?: string | null;
   permissions: string[];
+  timeZone?: string;
 }
 
 declare global {
@@ -83,6 +85,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       roleName: user.role.name,
       employeeId: user.employeeId,
       permissions,
+      timeZone: isValidTimeZone(req.header('X-User-Timezone')) ? req.header('X-User-Timezone')! : 'UTC',
     };
 
     next();

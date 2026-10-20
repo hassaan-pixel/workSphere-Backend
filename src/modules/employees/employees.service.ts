@@ -3,6 +3,7 @@ import { BadRequestError, ForbiddenError, NotFoundError, ConflictError } from '.
 import { PaginationParams } from '../../common/utils/pagination.utils';
 import { CreateEmployeeInput, UpdateEmployeeInput } from './employees.schema';
 import { provisionEmployeeAccount } from '../users/employee-account.service';
+import { dateOnlyUtc } from '../../common/utils/timezone.utils';
 
 export interface EmployeeFilters {
   departmentId?: string;
@@ -37,10 +38,10 @@ export class EmployeesService {
     if (filters?.hireDateFrom || filters?.hireDateTo) {
       const hireDateFilter: Record<string, Date> = {};
       if (filters?.hireDateFrom) {
-        hireDateFilter.gte = new Date(filters.hireDateFrom);
+        hireDateFilter.gte = dateOnlyUtc(filters.hireDateFrom);
       }
       if (filters?.hireDateTo) {
-        hireDateFilter.lte = new Date(filters.hireDateTo);
+        hireDateFilter.lte = dateOnlyUtc(filters.hireDateTo);
       }
       where.hireDate = hireDateFilter;
     }
@@ -210,16 +211,16 @@ export class EmployeesService {
           workEmail: input.workEmail,
           personalEmail: input.personalEmail || null,
           phone: input.phone || null,
-          dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
+          dateOfBirth: input.dateOfBirth ? dateOnlyUtc(input.dateOfBirth) : null,
           gender: input.gender || null,
-          hireDate: new Date(input.hireDate),
+          hireDate: dateOnlyUtc(input.hireDate),
           employmentStatus: input.employmentStatus,
           employmentType: input.employmentType,
           departmentId: input.departmentId || null,
           designationId: input.designationId || null,
           reportingManagerId: input.reportingManagerId || null,
           workLocation: input.workLocation,
-          employmentEndDate: input.employmentEndDate ? new Date(input.employmentEndDate) : null,
+          employmentEndDate: input.employmentEndDate ? dateOnlyUtc(input.employmentEndDate) : null,
           avatarUrl: input.avatarUrl || null,
         },
         include: {
@@ -314,16 +315,16 @@ export class EmployeesService {
     if (input.workEmail !== undefined) updateData.workEmail = input.workEmail;
     if (input.personalEmail !== undefined) updateData.personalEmail = input.personalEmail || null;
     if (input.phone !== undefined) updateData.phone = input.phone || null;
-    if (input.dateOfBirth !== undefined) updateData.dateOfBirth = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
+    if (input.dateOfBirth !== undefined) updateData.dateOfBirth = input.dateOfBirth ? dateOnlyUtc(input.dateOfBirth) : null;
     if (input.gender !== undefined) updateData.gender = input.gender || null;
-    if (input.hireDate !== undefined) updateData.hireDate = new Date(input.hireDate);
+    if (input.hireDate !== undefined) updateData.hireDate = dateOnlyUtc(input.hireDate);
     if (input.employmentStatus !== undefined) updateData.employmentStatus = input.employmentStatus;
     if (input.employmentType !== undefined) updateData.employmentType = input.employmentType;
     if (input.departmentId !== undefined) updateData.departmentId = input.departmentId || null;
     if (input.designationId !== undefined) updateData.designationId = input.designationId || null;
     if (input.reportingManagerId !== undefined) updateData.reportingManagerId = input.reportingManagerId || null;
     if (input.workLocation !== undefined) updateData.workLocation = input.workLocation;
-    if (input.employmentEndDate !== undefined) updateData.employmentEndDate = input.employmentEndDate ? new Date(input.employmentEndDate) : null;
+    if (input.employmentEndDate !== undefined) updateData.employmentEndDate = input.employmentEndDate ? dateOnlyUtc(input.employmentEndDate) : null;
     if (input.avatarUrl !== undefined) updateData.avatarUrl = input.avatarUrl || null;
 
     let accountRoleId: string | undefined;

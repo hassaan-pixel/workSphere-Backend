@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { dateOnlySchema, isoInstantSchema, optionalDateOnlySchema } from '../../common/utils/date.schema';
 
 export const createJobOpeningSchema = z.object({
   title: z.string().min(2, 'Job title is required').max(200).trim(),
@@ -7,8 +8,8 @@ export const createJobOpeningSchema = z.object({
   description: z.string().min(10, 'Description must be at least 10 characters'),
   employmentType: z.enum(['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERN']).default('FULL_TIME'),
   positionsCount: z.number().int().positive().default(1),
-  openingDate: z.string().optional(),
-  closingDate: z.string().optional().nullable(),
+  openingDate: dateOnlySchema.optional(),
+  closingDate: optionalDateOnlySchema,
   hiringManagerId: z.string().uuid().optional().nullable(),
   status: z.enum(['DRAFT', 'OPEN', 'ON_HOLD', 'CLOSED']).default('OPEN'),
 });
@@ -28,7 +29,7 @@ export const createCandidateSchema = z.object({
 export const transitionStageSchema = z.object({
   toStage: z.enum(['APPLIED', 'SCREENING', 'INTERVIEW', 'OFFER', 'HIRED', 'REJECTED']),
   comment: z.string().max(500).optional(),
-  scheduledDate: z.string().optional().nullable(),
+  scheduledDate: isoInstantSchema.optional().nullable(),
   interviewerNotes: z.string().max(1000).optional().nullable(),
 });
 
@@ -40,9 +41,9 @@ export const hireCandidateSchema = z.object({
   workEmail: z.string().email('Valid work email is required').toLowerCase().trim().optional(),
   personalEmail: z.string().email('Valid personal email is required').toLowerCase().trim().optional().nullable(),
   phone: z.string().max(30).trim().optional().nullable(),
-  dateOfBirth: z.string().refine((value) => !Number.isNaN(Date.parse(value)), 'Date of birth must be a valid date').optional().nullable(),
+  dateOfBirth: optionalDateOnlySchema,
   gender: z.enum(['MALE', 'FEMALE', 'NON_BINARY', 'PREFER_NOT_TO_SAY']).optional().nullable(),
-  hireDate: z.string({ required_error: 'Hire date is required' }).refine((value) => !Number.isNaN(Date.parse(value)), 'Hire date must be a valid date'),
+  hireDate: dateOnlySchema,
   departmentId: z.string().uuid().optional().nullable(),
   designationId: z.string().uuid().optional().nullable(),
   reportingManagerId: z.string().uuid().optional().nullable(),

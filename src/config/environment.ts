@@ -10,6 +10,10 @@ export interface Config {
   apiPrefix: string;
   corsOrigin: string;
   databaseUrl: string;
+  gemini: {
+    apiKey?: string;
+    model: string;
+  };
   jwt: {
     secret: string;
     expiresIn: string;
@@ -28,6 +32,10 @@ export const config: Config = {
   apiPrefix: process.env.API_PREFIX || '/api',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:4200',
   databaseUrl: process.env.DATABASE_URL || 'file:./dev.db',
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY,
+    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+  },
   jwt: {
     secret: process.env.JWT_SECRET || 'worksphere_development_fallback_secret_key_38f9b20e',
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',

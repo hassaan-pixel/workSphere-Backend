@@ -1,6 +1,7 @@
 import { prisma } from '../../database/prisma';
 import { NotFoundError, ConflictError, BadRequestError } from '../../common/errors/app.error';
 import { CreateShiftInput, UpdateShiftInput, AssignShiftInput } from './shifts.schema';
+import { dateOnlyUtc } from '../../common/utils/timezone.utils';
 
 export class ShiftsService {
   calculateWorkingHours(startTime: string, endTime: string, breakMinutes = 60) {
@@ -154,8 +155,8 @@ export class ShiftsService {
     const shift = await prisma.shift.findUnique({ where: { id: input.shiftId } });
     if (!shift) throw new NotFoundError(`Shift with ID ${input.shiftId} not found.`);
 
-    const newStart = new Date(input.startDate);
-    const newEnd = input.endDate ? new Date(input.endDate) : null;
+    const newStart = dateOnlyUtc(input.startDate);
+    const newEnd = input.endDate ? dateOnlyUtc(input.endDate) : null;
 
     if (newEnd && newEnd < newStart) {
       throw new BadRequestError('Assignment end date cannot be earlier than start date.');
@@ -182,7 +183,7 @@ export class ShiftsService {
         // If an indefinite assignment is already present, close it at the new start date
         if (!existingEnd) {
           const dayBefore = new Date(newStart);
-          dayBefore.setDate(dayBefore.getDate() - 1);
+          dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
           await prisma.shiftAssignment.update({
             where: { id: existing.id },
             data: { endDate: dayBefore, isActive: false },

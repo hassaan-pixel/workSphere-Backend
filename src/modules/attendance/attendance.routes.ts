@@ -45,7 +45,8 @@ router.post(
         employeeId,
         req.body.notes,
         req.user!.id,
-        req.ip
+        req.ip,
+        req.user!.timeZone || 'UTC'
       );
       sendSuccess(res, result, 'Clocked in successfully', 201);
     } catch (error) {
@@ -66,7 +67,8 @@ router.post(
         employeeId,
         req.body.notes,
         req.user!.id,
-        req.ip
+        req.ip,
+        req.user!.timeZone || 'UTC'
       );
       sendSuccess(res, result, 'Clocked out successfully');
     } catch (error) {
@@ -138,8 +140,14 @@ router.get(
   requirePermission('attendance:read'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
-      const month = req.query.month ? Number(req.query.month) : new Date().getMonth() + 1;
+      const currentPeriod = new Intl.DateTimeFormat('en', {
+        timeZone: req.user!.timeZone || 'UTC',
+        year: 'numeric',
+        month: 'numeric',
+      }).formatToParts(new Date());
+      const currentParts = new Map(currentPeriod.map((part) => [part.type, part.value]));
+      const year = req.query.year ? Number(req.query.year) : Number(currentParts.get('year'));
+      const month = req.query.month ? Number(req.query.month) : Number(currentParts.get('month'));
 
       const employeeId = isAttendanceAdmin(req) ? req.params.employeeId : getOwnEmployeeId(req);
       const records = await attendanceService.getMonthlyView(employeeId, year, month);
@@ -158,7 +166,7 @@ router.get(
     try {
       const filters = attendanceFilterSchema.parse(req.query);
       if (!isAttendanceAdmin(req)) filters.employeeId = getOwnEmployeeId(req);
-      const csv = await attendanceService.exportCsv(filters);
+      const csv = await attendanceService.exportCsv(filters, req.user!.timeZone || 'UTC');
 
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="attendance-report-${Date.now()}.csv"`);

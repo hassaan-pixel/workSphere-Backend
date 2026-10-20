@@ -10,6 +10,7 @@ import {
 import { auditService } from '../audit/audit.service';
 import { onboardingService } from '../onboarding/onboarding.service';
 import { provisionEmployeeAccount } from '../users/employee-account.service';
+import { dateOnlyUtc } from '../../common/utils/timezone.utils';
 
 export class RecruitmentService {
   // --- Job Openings ---
@@ -65,8 +66,8 @@ export class RecruitmentService {
         description: input.description,
         employmentType: input.employmentType,
         positionsCount: input.positionsCount,
-        openingDate: input.openingDate ? new Date(input.openingDate) : new Date(),
-        closingDate: input.closingDate ? new Date(input.closingDate) : null,
+        openingDate: input.openingDate ? dateOnlyUtc(input.openingDate) : dateOnlyUtc(new Date().toISOString().slice(0, 10)),
+        closingDate: input.closingDate ? dateOnlyUtc(input.closingDate) : null,
         hiringManagerId: input.hiringManagerId || null,
         status: input.status,
       },
@@ -97,8 +98,8 @@ export class RecruitmentService {
         ...(input.description ? { description: input.description } : {}),
         ...(input.employmentType ? { employmentType: input.employmentType } : {}),
         ...(input.positionsCount !== undefined ? { positionsCount: input.positionsCount } : {}),
-        ...(input.openingDate ? { openingDate: new Date(input.openingDate) } : {}),
-        ...(input.closingDate !== undefined ? { closingDate: input.closingDate ? new Date(input.closingDate) : null } : {}),
+        ...(input.openingDate ? { openingDate: dateOnlyUtc(input.openingDate) } : {}),
+        ...(input.closingDate !== undefined ? { closingDate: input.closingDate ? dateOnlyUtc(input.closingDate) : null } : {}),
         ...(input.hiringManagerId !== undefined ? { hiringManagerId: input.hiringManagerId || null } : {}),
         ...(input.status ? { status: input.status } : {}),
       },
@@ -293,9 +294,9 @@ export class RecruitmentService {
           workEmail,
           personalEmail: input.personalEmail || null,
           phone: input.phone || candidate.phone || null,
-          dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
+          dateOfBirth: input.dateOfBirth ? dateOnlyUtc(input.dateOfBirth) : null,
           gender: input.gender || null,
-          hireDate: new Date(input.hireDate),
+          hireDate: dateOnlyUtc(input.hireDate),
           employmentStatus: input.employmentStatus,
           employmentType: input.employmentType,
           workLocation: input.workLocation,
