@@ -1,10 +1,11 @@
 import { z } from 'zod';
+import { dateOnlySchema } from '../../common/utils/date.schema';
 
 export const createLeaveRequestSchema = z.object({
   employeeId: z.string().uuid().optional(), // If omitted, defaults to authenticated user's employeeId
   leaveTypeId: z.string().uuid('Leave type ID is required'),
-  startDate: z.string({ required_error: 'Start date is required (YYYY-MM-DD)' }),
-  endDate: z.string({ required_error: 'End date is required (YYYY-MM-DD)' }),
+  startDate: dateOnlySchema,
+  endDate: dateOnlySchema,
   reason: z.string().min(5, 'Reason must be at least 5 characters').max(500),
   documentUrl: z.string().url('Invalid document URL').optional().nullable(),
 });
@@ -36,8 +37,8 @@ export const leaveFilterSchema = z.object({
   departmentId: z.string().uuid().optional(),
   status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']).optional(),
   leaveTypeId: z.string().uuid().optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
+  startDate: dateOnlySchema.optional(),
+  endDate: dateOnlySchema.optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().default(20),
 });

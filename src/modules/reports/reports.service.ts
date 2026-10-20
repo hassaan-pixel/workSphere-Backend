@@ -1,9 +1,10 @@
 import { prisma } from '../../database/prisma';
+import { calendarDateInZone, calendarDateStringInZone, dateOnlyUtc } from '../../common/utils/timezone.utils';
 
 export class ReportsService {
-  async getOverview() {
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
+  async getOverview(timeZone = 'UTC') {
+    const todayParts = calendarDateInZone(new Date(), timeZone);
+    const today = dateOnlyUtc(`${todayParts.year}-${String(todayParts.month).padStart(2, '0')}-${String(todayParts.day).padStart(2, '0')}`);
 
     const [employees, activeEmployees, byDepartment, attendance, leave, recruitment, onboarding, payroll, performance] = await Promise.all([
       prisma.employee.count(),
@@ -95,9 +96,8 @@ export class ReportsService {
   }
 
   async getAttendanceReport(startDate: string, endDate: string, departmentId?: string) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    end.setUTCHours(23, 59, 59, 999);
+    const start = dateOnlyUtc(startDate);
+    const end = dateOnlyUtc(endDate);
 
     const where: Record<string, unknown> = {
       workDate: { gte: start, lte: end },
@@ -142,7 +142,7 @@ export class ReportsService {
   }
 
   async getLeaveReport(year?: number, departmentId?: string) {
-    const currentYear = year || new Date().getFullYear();
+    const currentYear = year || new Date().getUTCFullYear();
     const where: Record<string, unknown> = {};
     if (departmentId) {
       where.employee = { departmentId };
@@ -227,7 +227,7 @@ export class ReportsService {
     };
   }
 
-  async getExportCsv(reportType: string, query: Record<string, string>): Promise<string> {
+  async getExportCsv(reportType: string, query: Record<string, string>, timeZone = 'UTC'): Promise<string> {
     if (reportType === 'headcount') {
       const data = await this.getHeadcountReport(query.departmentId);
       const rows = [
@@ -241,7 +241,7 @@ export class ReportsService {
     }
 
     if (reportType === 'attendance') {
-      const today = new Date().toISOString().substring(0, 10);
+      const today = calendarDateStringInZone(new Date(), timeZone);
       const start = query.startDate || today;
       const end = query.endDate || today;
       const data = await this.getAttendanceReport(start, end, query.departmentId);

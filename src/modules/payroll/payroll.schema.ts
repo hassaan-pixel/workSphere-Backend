@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { dateOnlySchema } from '../../common/utils/date.schema';
 
 const componentSchema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -6,7 +7,7 @@ const componentSchema = z.object({
   amountCents: z.number().int().min(0).max(100_000_000),
 });
 
-const dateSchema = z.string().refine((val) => !isNaN(Date.parse(val)), { message: 'Must be a valid date string' });
+const dateSchema = dateOnlySchema;
 
 export const salaryStructureSchema = z.object({
   employeeId: z.string().uuid(),

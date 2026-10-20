@@ -1,7 +1,10 @@
 import { z } from 'zod';
+import { dateOnlySchema } from '../../common/utils/date.schema';
 
-const dateSchema = z.string().refine((val) => !isNaN(Date.parse(val)), { message: 'Must be a valid date string' });
-const optionalDateSchema = z.string().nullish().transform((val) => (!val || val.trim() === '' ? undefined : val)).refine((val) => !val || !isNaN(Date.parse(val)), { message: 'Must be a valid date string' });
+const dateSchema = dateOnlySchema;
+const optionalDateSchema = z.string().nullish()
+  .transform((value) => (!value || value.trim() === '' ? undefined : value))
+  .pipe(dateOnlySchema.optional());
 
 export const cycleSchema = z.object({
   name: z.string().trim().min(3).max(100),

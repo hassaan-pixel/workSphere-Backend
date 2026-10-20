@@ -7,6 +7,7 @@ import {
   UpdateTaskStatusInput,
 } from './onboarding.schema';
 import { auditService } from '../audit/audit.service';
+import { dateOnlyUtc } from '../../common/utils/timezone.utils';
 
 export class OnboardingService {
   // --- Templates ---
@@ -105,7 +106,7 @@ export class OnboardingService {
 
     const tasksToCreate = template.items.map((item) => {
       const dueDate = new Date(baseDate);
-      dueDate.setDate(dueDate.getDate() + item.defaultDueDays);
+      dueDate.setUTCDate(dueDate.getUTCDate() + item.defaultDueDays);
 
       return {
         employeeId,
@@ -161,7 +162,7 @@ export class OnboardingService {
         description: input.description || null,
         category: input.category || 'GENERAL',
         assignedOwnerId: input.assignedOwnerId || null,
-        dueDate: new Date(input.dueDate),
+        dueDate: dateOnlyUtc(input.dueDate),
         status: input.status || 'PENDING',
         notes: input.notes || null,
       },

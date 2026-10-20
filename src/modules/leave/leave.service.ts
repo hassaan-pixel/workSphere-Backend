@@ -67,7 +67,7 @@ export class LeaveService {
     return prisma.leaveType.update({ where: { id }, data: input });
   }
 
-  async getEmployeeBalances(employeeId: string, year = new Date().getFullYear()) {
+  async getEmployeeBalances(employeeId: string, year = new Date().getUTCFullYear()) {
     const balances = await prisma.leaveBalance.findMany({
       where: { employeeId, year },
       include: { leaveType: true },

@@ -1,4 +1,5 @@
 import { prisma } from '../../database/prisma';
+import { calendarDateInZone, dateOnlyUtc } from '../../common/utils/timezone.utils';
 
 export interface DashboardMetrics {
   summary: {
@@ -50,7 +51,7 @@ export interface DashboardMetrics {
 }
 
 export class DashboardService {
-  async getMetrics(): Promise<DashboardMetrics> {
+  async getMetrics(timeZone = 'UTC'): Promise<DashboardMetrics> {
     const totalEmployees = await prisma.employee.count();
     const activeEmployees = await prisma.employee.count({
       where: { employmentStatus: 'ACTIVE' },
@@ -118,7 +119,14 @@ export class DashboardService {
       },
     });
 
-    const today = new Date();
+    const now = new Date();
+    const todayParts = calendarDateInZone(now, timeZone);
+    const today = dateOnlyUtc(`${todayParts.year}-${String(todayParts.month).padStart(2, '0')}-${String(todayParts.day).padStart(2, '0')}`);
+    const todayUtcParts = {
+      year: todayParts.year,
+      month: todayParts.month - 1,
+      day: todayParts.day,
+    };
     const upcomingBirthdays: DashboardMetrics['upcomingEvents']['birthdays'] = [];
     const upcomingAnniversaries: DashboardMetrics['upcomingEvents']['anniversaries'] = [];
 
@@ -129,9 +137,12 @@ export class DashboardService {
       // Birthday check
       if (emp.dateOfBirth) {
         const dob = new Date(emp.dateOfBirth);
-        const thisYearBirthday = new Date(today.getFullYear(), dob.getMonth(), dob.getDate());
+        const birthdayMonth = dob.getUTCMonth();
+        const birthdayDay = Math.min(dob.getUTCDate(), new Date(Date.UTC(todayParts.year, birthdayMonth + 1, 0)).getUTCDate());
+        const thisYearBirthday = new Date(Date.UTC(todayParts.year, birthdayMonth, birthdayDay));
         if (thisYearBirthday < today) {
-          thisYearBirthday.setFullYear(today.getFullYear() + 1);
+          const nextYearDay = Math.min(dob.getUTCDate(), new Date(Date.UTC(todayParts.year + 1, birthdayMonth + 1, 0)).getUTCDate());
+          thisYearBirthday.setUTCFullYear(todayParts.year + 1, birthdayMonth, nextYearDay);
         }
         const diffDays = Math.ceil(
           (thisYearBirthday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
@@ -150,11 +161,14 @@ export class DashboardService {
       // Work anniversary check
       if (emp.hireDate) {
         const hire = new Date(emp.hireDate);
-        const yearsCompleted = today.getFullYear() - hire.getFullYear();
+        const yearsCompleted = todayParts.year - hire.getUTCFullYear();
         if (yearsCompleted > 0) {
-          const thisYearAnniv = new Date(today.getFullYear(), hire.getMonth(), hire.getDate());
+          const anniversaryMonth = hire.getUTCMonth();
+          const anniversaryDay = Math.min(hire.getUTCDate(), new Date(Date.UTC(todayParts.year, anniversaryMonth + 1, 0)).getUTCDate());
+          const thisYearAnniv = new Date(Date.UTC(todayParts.year, anniversaryMonth, anniversaryDay));
           if (thisYearAnniv < today) {
-            thisYearAnniv.setFullYear(today.getFullYear() + 1);
+            const nextYearDay = Math.min(hire.getUTCDate(), new Date(Date.UTC(todayParts.year + 1, anniversaryMonth + 1, 0)).getUTCDate());
+            thisYearAnniv.setUTCFullYear(todayParts.year + 1, anniversaryMonth, nextYearDay);
           }
           const diffDays = Math.ceil(
             (thisYearAnniv.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
@@ -176,8 +190,7 @@ export class DashboardService {
     upcomingBirthdays.sort((a, b) => a.daysRemaining - b.daysRemaining);
     upcomingAnniversaries.sort((a, b) => a.daysRemaining - b.daysRemaining);
 
-    const todayDateOnly = new Date();
-    todayDateOnly.setUTCHours(0, 0, 0, 0);
+    const todayDateOnly = dateOnlyUtc(`${todayUtcParts.year}-${String(todayUtcParts.month + 1).padStart(2, '0')}-${String(todayUtcParts.day).padStart(2, '0')}`);
     const presentTodayCount = await prisma.attendanceRecord.count({
       where: {
         workDate: todayDateOnly,

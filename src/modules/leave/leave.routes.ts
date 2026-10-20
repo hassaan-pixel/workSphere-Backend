@@ -12,6 +12,7 @@ import {
   leaveFilterSchema,
 } from './leave.schema';
 import { BadRequestError } from '../../common/errors/app.error';
+import { calendarDateInZone } from '../../common/utils/timezone.utils';
 
 const router = Router();
 
@@ -66,7 +67,8 @@ router.get(
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
+      const localDate = calendarDateInZone(new Date(), req.user!.timeZone || 'UTC');
+      const year = req.query.year ? Number(req.query.year) : localDate.year;
       const balances = await leaveService.getEmployeeBalances(req.params.employeeId, year);
       sendSuccess(res, balances, 'Employee leave balances retrieved');
     } catch (error) {
@@ -191,8 +193,16 @@ router.get(
   requirePermission('leave:read_team'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const startDate = typeof req.query.startDate === 'string' ? req.query.startDate : new Date().toISOString().substring(0, 7) + '-01';
-      const endDate = typeof req.query.endDate === 'string' ? req.query.endDate : new Date().toISOString().substring(0, 7) + '-28';
+      const localPeriod = new Intl.DateTimeFormat('en', {
+        timeZone: req.user!.timeZone || 'UTC',
+        year: 'numeric',
+        month: '2-digit',
+      }).formatToParts(new Date());
+      const periodValues = new Map(localPeriod.map((part) => [part.type, part.value]));
+      const year = Number(periodValues.get('year'));
+      const month = Number(periodValues.get('month'));
+      const startDate = typeof req.query.startDate === 'string' ? req.query.startDate : `${year}-${String(month).padStart(2, '0')}-01`;
+      const endDate = typeof req.query.endDate === 'string' ? req.query.endDate : new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
       const departmentId = typeof req.query.departmentId === 'string' ? req.query.departmentId : undefined;
 
       const calendarLeaves = await leaveService.getLeaveCalendar(startDate, endDate, departmentId);

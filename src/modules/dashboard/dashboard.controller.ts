@@ -5,7 +5,7 @@ import { sendSuccess } from '../../common/utils/response.utils';
 export class DashboardController {
   async getMetrics(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await dashboardService.getMetrics();
+      const data = await dashboardService.getMetrics(req.user?.timeZone || 'UTC');
       sendSuccess(res, data, 'Dashboard metrics retrieved successfully');
     } catch (error) {
       next(error);
