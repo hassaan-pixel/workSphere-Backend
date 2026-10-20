@@ -2,6 +2,7 @@ import { prisma } from '../../database/prisma';
 import { NotFoundError, BadRequestError } from '../../common/errors/app.error';
 import { ManualAttendanceInput, AttendanceFilterInput } from './attendance.schema';
 import { auditService } from '../audit/audit.service';
+import { calendarDateStringInZone, dateOnlyUtc } from '../../common/utils/timezone.utils';
 
 export class AttendanceService {
   normalizeDate(d: Date | string): Date {
@@ -29,12 +30,12 @@ export class AttendanceService {
     return prisma.shift.findFirst({ where: { code: 'MORN_STD' } });
   }
 
-  async clockIn(employeeId: string, notes?: string, actorId?: string, ipAddress?: string) {
+  async clockIn(employeeId: string, notes?: string, actorId?: string, ipAddress?: string, timeZone = 'UTC') {
     const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
     if (!employee) throw new NotFoundError('Employee not found');
 
     const now = new Date();
-    const workDate = this.normalizeDate(now);
+    const workDate = dateOnlyUtc(calendarDateStringInZone(now, timeZone));
     const shift = await this.getActiveShiftForEmployee(employeeId, workDate);
 
     // Determine if late compared to shift start + grace
@@ -43,7 +44,14 @@ export class AttendanceService {
       const [sh, sm] = shift.startTime.split(':').map(Number);
       const grace = shift.gracePeriodMinutes || 15;
       const shiftStartInMins = sh * 60 + sm + grace;
-      const currentMins = now.getUTCHours() * 60 + now.getUTCMinutes();
+      const localClockParts = new Intl.DateTimeFormat('en', {
+        timeZone,
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      }).formatToParts(now);
+      const clockPartMap = new Map(localClockParts.map((part) => [part.type, part.value]));
+      const currentMins = Number(clockPartMap.get('hour')) * 60 + Number(clockPartMap.get('minute'));
       if (currentMins > shiftStartInMins && !shift.isOvernight) {
         status = 'LATE';
       }
@@ -106,15 +114,19 @@ export class AttendanceService {
     return result;
   }
 
-  async clockOut(employeeId: string, notes?: string, actorId?: string, ipAddress?: string) {
+  async clockOut(employeeId: string, notes?: string, actorId?: string, ipAddress?: string, timeZone = 'UTC') {
     const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
     if (!employee) throw new NotFoundError('Employee not found');
 
     const now = new Date();
-    const workDate = this.normalizeDate(now);
+    const workDate = dateOnlyUtc(calendarDateStringInZone(now, timeZone));
 
     const updatedRecord = await prisma.$transaction(async (tx) => {
-      const record = await tx.attendanceRecord.findUnique({
+      const record = await tx.attendanceRecord.findFirst({
+        where: { employeeId, sessions: { some: { clockOut: null } } },
+        orderBy: { workDate: 'desc' },
+        include: { shift: true, sessions: true },
+      }) || await tx.attendanceRecord.findUnique({
         where: { employeeId_workDate: { employeeId, workDate } },
         include: { shift: true, sessions: true },
       });
@@ -380,7 +392,7 @@ export class AttendanceService {
     return records;
   }
 
-  async exportCsv(filters: AttendanceFilterInput): Promise<string> {
+  async exportCsv(filters: AttendanceFilterInput, timeZone = 'UTC'): Promise<string> {
     const { items } = await this.listAttendance({ ...filters, limit: 1000, page: 1 });
 
     const headers = [
@@ -405,8 +417,8 @@ export class AttendanceService {
       `"${rec.employee.department?.name || 'N/A'}"`,
       `"${rec.shift?.name || 'N/A'}"`,
       rec.status,
-      rec.checkInTime ? new Date(rec.checkInTime).toISOString().substring(11, 19) : '',
-      rec.checkOutTime ? new Date(rec.checkOutTime).toISOString().substring(11, 19) : '',
+      rec.checkInTime ? new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(rec.checkInTime) : '',
+      rec.checkOutTime ? new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(rec.checkOutTime) : '',
       rec.workingHours,
       rec.overtimeHours,
       rec.isManualEntry ? 'Yes' : 'No',

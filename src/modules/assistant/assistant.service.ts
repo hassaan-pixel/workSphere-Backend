@@ -2,6 +2,7 @@ import { prisma } from '../../database/prisma';
 import { AppError, BadRequestError, ForbiddenError } from '../../common/errors/app.error';
 import { config } from '../../config/environment';
 import { AuthenticatedUser } from '../../common/middleware/auth.middleware';
+import { calendarDateStringInZone, dateOnlyUtc } from '../../common/utils/timezone.utils';
 
 type AssistantToolName =
   | 'get_current_leave'
@@ -149,10 +150,11 @@ async function getCurrentLeave(user: AuthenticatedUser) {
   assertPermission(user, 'leave:read', 'leave:read_team', 'leave:read_own');
   const scope = await getEmployeeScope(user);
   const now = new Date();
+  const today = dateOnlyUtc(calendarDateStringInZone(now, user.timeZone || 'UTC'));
   const where = {
     status: 'APPROVED',
-    startDate: { lte: now },
-    endDate: { gte: now },
+    startDate: { lte: today },
+    endDate: { gte: today },
     employee: scope,
   };
   const [employeeGroups, requests] = await Promise.all([

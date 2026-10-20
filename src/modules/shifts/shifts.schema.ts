@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { dateOnlySchema } from '../../common/utils/date.schema';
 
 export const createShiftSchema = z.object({
   code: z.string().min(1, 'Shift code is required').max(20).trim().toUpperCase(),
@@ -18,8 +19,8 @@ export const updateShiftSchema = createShiftSchema.partial();
 export const assignShiftSchema = z.object({
   employeeId: z.string().uuid('Invalid employee ID'),
   shiftId: z.string().uuid('Invalid shift ID'),
-  startDate: z.string({ required_error: 'Effective start date is required' }),
-  endDate: z.string().optional().nullable(),
+  startDate: dateOnlySchema,
+  endDate: dateOnlySchema.nullish(),
 });
 
 export type CreateShiftInput = z.infer<typeof createShiftSchema>;

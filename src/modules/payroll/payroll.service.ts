@@ -2,6 +2,7 @@ import { prisma } from '../../database/prisma';
 import { BadRequestError, NotFoundError } from '../../common/errors/app.error';
 import { PayrollRunInput, SalaryStructureInput } from './payroll.schema';
 import { auditService } from '../audit/audit.service';
+import { dateOnlyUtc } from '../../common/utils/timezone.utils';
 
 export class PayrollService {
   async listSalaryStructures(employeeId?: string) {
@@ -15,7 +16,7 @@ export class PayrollService {
   async createSalaryStructure(input: SalaryStructureInput, actorId: string) {
     const employee = await prisma.employee.findUnique({ where: { id: input.employeeId }, select: { id: true } });
     if (!employee) throw new NotFoundError('Employee not found.');
-    const effectiveDate = new Date(input.effectiveDate);
+    const effectiveDate = dateOnlyUtc(input.effectiveDate);
     return prisma.$transaction(async (tx) => {
       await tx.salaryStructure.updateMany({
         where: { employeeId: input.employeeId, effectiveDate: { lte: effectiveDate }, isActive: true },
@@ -41,7 +42,7 @@ export class PayrollService {
 
   async createRun(input: PayrollRunInput, actorId: string) {
     return prisma.payrollRun.create({
-      data: { periodStart: new Date(input.periodStart), periodEnd: new Date(input.periodEnd), currency: input.currency, createdById: actorId },
+      data: { periodStart: dateOnlyUtc(input.periodStart), periodEnd: dateOnlyUtc(input.periodEnd), currency: input.currency, createdById: actorId },
     });
   }
 

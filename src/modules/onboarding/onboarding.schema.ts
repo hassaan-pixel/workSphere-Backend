@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { dateOnlySchema } from '../../common/utils/date.schema';
 
 export const createTemplateSchema = z.object({
   name: z.string().min(2, 'Template name is required').max(100).trim(),
@@ -24,7 +25,7 @@ export const createTaskSchema = z.object({
   description: z.string().max(500).optional().nullable(),
   category: z.string().default('GENERAL'),
   assignedOwnerId: z.string().uuid().optional().nullable(),
-  dueDate: z.string({ required_error: 'Due date is required (YYYY-MM-DD)' }),
+  dueDate: dateOnlySchema,
   status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'BLOCKED']).default('PENDING'),
   notes: z.string().max(500).optional().nullable(),
 });

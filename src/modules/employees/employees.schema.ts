@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { dateOnlySchema, optionalDateOnlySchema } from '../../common/utils/date.schema';
 
 export const createEmployeeSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters').max(128).optional(),
@@ -25,16 +26,16 @@ export const createEmployeeSchema = z.object({
     .toLowerCase(),
   personalEmail: z.string().email('Invalid personal email').trim().toLowerCase().optional().nullable(),
   phone: z.string().max(30).trim().optional().nullable(),
-  dateOfBirth: z.string().optional().nullable(),
+  dateOfBirth: optionalDateOnlySchema,
   gender: z.enum(['MALE', 'FEMALE', 'NON_BINARY', 'PREFER_NOT_TO_SAY']).optional().nullable(),
-  hireDate: z.string({ required_error: 'Hire date is required' }),
+  hireDate: dateOnlySchema,
   employmentStatus: z.enum(['ACTIVE', 'ON_LEAVE', 'PROBATION', 'TERMINATED', 'RESIGNED']).default('ACTIVE'),
   employmentType: z.enum(['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERN']).default('FULL_TIME'),
   departmentId: z.string().uuid('Invalid department ID').optional().nullable(),
   designationId: z.string().uuid('Invalid designation ID').optional().nullable(),
   reportingManagerId: z.string().uuid('Invalid manager ID').optional().nullable(),
   workLocation: z.string().max(200).trim().default('Headquarters'),
-  employmentEndDate: z.string().optional().nullable(),
+  employmentEndDate: optionalDateOnlySchema,
   avatarUrl: z.string().url('Invalid avatar URL').optional().nullable(),
 });
 

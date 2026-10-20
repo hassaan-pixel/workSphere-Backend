@@ -1,6 +1,7 @@
 import { prisma } from '../../database/prisma';
 import { NotFoundError, ConflictError } from '../../common/errors/app.error';
 import { CreateHolidayInput, UpdateHolidayInput } from './holidays.schema';
+import { dateOnlyUtc } from '../../common/utils/timezone.utils';
 
 export class HolidaysService {
   async listHolidays(year?: number, location?: string, departmentId?: string) {
@@ -43,7 +44,7 @@ export class HolidaysService {
   }
 
   async createHoliday(input: CreateHolidayInput) {
-    const targetDate = new Date(input.date);
+    const targetDate = dateOnlyUtc(input.date);
 
     // Prevent duplicate holiday with the same name and date in the same scope
     const existing = await prisma.holiday.findFirst({
@@ -62,7 +63,7 @@ export class HolidaysService {
       data: {
         name: input.name,
         date: targetDate,
-        endDate: input.endDate ? new Date(input.endDate) : null,
+        endDate: input.endDate ? dateOnlyUtc(input.endDate) : null,
         description: input.description || null,
         holidayType: input.holidayType,
         location: input.location || null,
@@ -85,8 +86,8 @@ export class HolidaysService {
       where: { id },
       data: {
         ...(input.name ? { name: input.name } : {}),
-        ...(input.date ? { date: new Date(input.date) } : {}),
-        ...(input.endDate !== undefined ? { endDate: input.endDate ? new Date(input.endDate) : null } : {}),
+        ...(input.date ? { date: dateOnlyUtc(input.date) } : {}),
+        ...(input.endDate !== undefined ? { endDate: input.endDate ? dateOnlyUtc(input.endDate) : null } : {}),
         ...(input.description !== undefined ? { description: input.description || null } : {}),
         ...(input.holidayType ? { holidayType: input.holidayType } : {}),
         ...(input.location !== undefined ? { location: input.location || null } : {}),
